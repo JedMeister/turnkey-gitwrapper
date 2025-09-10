@@ -8,17 +8,14 @@
 # published by the Free Software Foundation; either version 3 of the
 # License, or (at your option) any later version.
 
-import sys
 import os
-from os.path import basename, dirname, exists, isdir, realpath, join, lexists
-import subprocess
-from subprocess import PIPE, STDOUT
-from typing import (Union, Callable, Any, TypeVar, Optional, IO, Generic,
-                    Type, no_type_check, Protocol)
-import contextlib
 import re
+import subprocess
+from os.path import basename, dirname, exists, isdir, join, lexists, realpath
+from subprocess import PIPE, STDOUT
+from typing import IO, Callable, Self, no_type_check
 
-AnyPath = Union[os.PathLike, str]
+AnyPath = os.PathLike | str
 
 
 def fspath(path: AnyPath) -> str:
@@ -36,7 +33,7 @@ def is_git_repository(path: AnyPath) -> bool:
 
 
 @no_type_check
-def setup(method):
+def setup(method: Callable) -> str:
     """Decorator that:
     1) chdirs into git.path
     2) processes arguments (only non-keywords arguments):
@@ -46,12 +43,12 @@ def setup(method):
     """
 
     @no_type_check
-    def wrapper(self, *args, **kws):
+    def wrapper(self: Self, *args: str, **kws: str) -> Self:
         orig_cwd = os.getcwd()
         os.chdir(self.path)
         os.environ['GIT_DIR'] = self.gitdir
 
-        def make_relative(arg):
+        def make_relative(arg: str) -> str:
             if arg is None or isinstance(arg, bool):
                 return arg
 
@@ -79,14 +76,14 @@ class GitError(Exception):
     pass
 
 
-class Git(object):
+class Git:
     """Class for interfacing with a git repository.
 
     Most methods that are documented to return values raise an exception on
     error, except if the method is documented to return None on error.
     """
 
-    class MergeMsg(object):
+    class MergeMsg:
         """Magical attribute.
 
         Set writes to .git/MERGE_MSG
@@ -96,10 +93,10 @@ class Git(object):
         def get_path(self, obj: 'Git') -> str:
             return join(obj.path, ".git", "MERGE_MSG")
 
-        def __get__(self, obj: 'Git', type: Any) -> Optional[str]:
+        def __get__(self, obj: 'Git', type: type) -> str | None:
             path = self.get_path(obj)
             if exists(path):
-                with open(path, 'r') as fob:
+                with open(path) as fob:
                     return fob.read()
 
             return None
@@ -111,18 +108,18 @@ class Git(object):
 
     MERGE_MSG = MergeMsg()
 
-    class IndexLock(object):
+    class IndexLock:
         def get_path(self, obj: 'Git') -> str:
             return join(obj.gitdir, "index.lock")
 
-        def __get__(self, obj: 'Git', type: Any) -> bool:
+        def __get__(self, obj: 'Git', type: type) -> bool:
             path = self.get_path(obj)
             return exists(path)
 
-        def __set__(self, obj: 'Git', val: Any) -> None:
+        def __set__(self, obj: 'Git', val: type) -> None:
             path = self.get_path(obj)
             if val:
-                with open(path, 'w') as fob:
+                with open(path, 'w'):
                     pass
             else:
                 if exists(path):
@@ -131,7 +128,7 @@ class Git(object):
     index_lock = IndexLock()
 
     @classmethod
-    def init_create(cls: Type['Git'],
+    def init_create(cls: type['Git'],
                     path: AnyPath,
                     bare: bool = False,
                     verbose: bool = False
@@ -154,7 +151,7 @@ class Git(object):
 
         return cls(_path)
 
-    def __init__(self, path: AnyPath):
+    def __init__(self, path: AnyPath) -> None:
         # heuristic: if the path has a .git directory in it, then its not bare
         # otherwise we assume its a bare repo if
         # 1) it ends with .git
@@ -170,14 +167,14 @@ class Git(object):
             self.bare = True
             self.gitdir = self.path
         else:
-            raise GitError("Not a git repository `%s'" % self.path)
+            raise GitError(f"Not a git repository `{self.path}'")
 
     def make_relative(self, path: AnyPath) -> str:
         path = fspath(path)
         path = join(realpath(dirname(path)), basename(path))
 
         if not (path == self.path or path.startswith(self.path + "/")):
-            raise GitError("path not in the git repository (%s)" % path)
+            raise GitError(f"path not in the git repository ({path})")
 
         return path[len(self.path):].lstrip("/")
 
@@ -243,8 +240,8 @@ class Git(object):
 
     def commit(
             self,
-            paths: Optional[list[str]] = None,
-            msg: Optional[str] = None,
+            paths: list[str] | None = None,
+            msg: str | None = None,
             update_all: bool = False,
             verbose: bool = False) -> None:
         """git commit"""
@@ -288,7 +285,7 @@ class Git(object):
     def fetch(self, repository: str, refspec: str) -> None:
         self._system("fetch", repository, refspec)
 
-    def raw(self, command: str, *args: str) -> Optional[int]:
+    def raw(self, command: str, *args: str) -> int | None:
         """execute a raw git command.
         Returns:
             exit status code if command failed
@@ -306,7 +303,7 @@ class Git(object):
             command: str,
             *args: str,
             check_returncode: bool = True,
-            stderr: Union[int, IO[str]] = STDOUT) -> str:
+            stderr: int | IO[str] = STDOUT) -> str:
 
         output = subprocess.run(
                 ['git', command, *args],
@@ -328,7 +325,7 @@ class Git(object):
         Returns id of written tree"""
         return self._getoutput("write-tree")
 
-    def rev_parse(self, *args: str) -> Optional[str]:
+    def rev_parse(self, *args: str) -> str | None:
         """git rev-parse <rev>.
         Returns object-id of parsed rev.
         Returns None on failure.
@@ -338,7 +335,7 @@ class Git(object):
         except GitError:
             return None
 
-    def merge_base(self, a: str, b: str) -> Optional[str]:
+    def merge_base(self, a: str, b: str) -> str | None:
         """git merge-base <a> <b>.
         Returns common ancestor"""
         try:
@@ -346,7 +343,7 @@ class Git(object):
         except GitError:
             return None
 
-    def symbolic_ref(self, name: str, ref: Optional[str] = None) -> str:
+    def symbolic_ref(self, name: str, ref: str | None = None) -> str:
         """git symbolic-ref <name> [ <ref> ]
         Returns the value of the symbolic ref.
         """
@@ -371,7 +368,7 @@ class Git(object):
         Returns name of rev"""
         return self._getoutput("name-rev", rev).split(" ")[1]
 
-    def show_ref(self, ref: str) -> Optional[str]:
+    def show_ref(self, ref: str) -> str | None:
         """git show-ref <rev>.
         Returns ref name if succesful
         Returns None on failure"""
@@ -399,7 +396,7 @@ class Git(object):
     @setup
     def commit_tree(self,
                     id: str, log: str,
-                    parents: Union[list[str], str] = None
+                    parents: list[str] | str | None = None
                     ) -> str:
         """git commit-tree <id> [ -p <parents> ] < <log>
         Return id of object committed"""
@@ -416,7 +413,7 @@ class Git(object):
             # p.stdin: Optional[IO[bytes]]
             p.stdin.write(log)  # type: ignore
             p.stdin.close()  # type: ignore
-        except IOError:
+        except OSError:
             pass
 
         err = p.wait()
@@ -425,22 +422,25 @@ class Git(object):
         # p.stdout: Optional[IO[bytes]]
         return p.stdout.read().strip()  # type: ignore
 
-    def mktree_empty(self) -> str:
+    def mktree_empty(self) -> bytes:
         """return an empty tree id which is needed for some comparisons"""
 
         args = ["git", "mktree"]
         p = subprocess.Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
             # p.stdin: Optional[IO[bytes]]
-            p.stdin.close()  # type: ignore
-        except IOError:
+            if p.stdin:
+                p.stdin.close()
+        except OSError:
             pass
 
         err = p.wait()
         if err:
             raise GitError("git mktree failed: {p.stderr.read()!r}")
         # p.stdout: Optional[IO[bytes]]
-        return p.stdout.read().strip()  # type: ignore
+        if p.stdout:
+            return p.stdout.read().strip()
+        return b""
 
     @setup
     def log(self, *args: str, oneline: bool = False, count: int = 0) -> str:
@@ -450,12 +450,12 @@ class Git(object):
         if oneline:
             command.append('--oneline')
         if count != 0:
-            command.append('-{}'.format(count))
+            command.append(f'-{count}')
         command = command + list(args)
 
         return self._getoutput(*command, stderr=PIPE)
 
-    def get_latest_tag(self) -> Union[str, bool]:
+    def get_latest_tag(self) -> str | bool:
         """git describe --tags $(git rev-list --tags --max-count=1)
         Returns latest tag. If no tags found, returns False."""
         # don't check_returncode as it will exit non-zero if no tags
@@ -489,8 +489,7 @@ class Git(object):
             return [line.split('\t', 1) for line in output.split('\n')]
         return []
 
-    def status_full(self, simple: bool = True) -> Union[
-            bool, dict[str, list[str]]]:
+    def status_full(self, simple: bool = True) -> bool | dict[str, list[str]]:
         """git status
         While simple=True; returns True if clean; False if any uncommitted,
         unstaged, or untracked files.
@@ -512,7 +511,7 @@ class Git(object):
                 if item.startswith(prefix):
                     return status, item[len(prefix):]
             raise GitError(
-                    'Unrecongnized git status prefix in "{}"'.format(item))
+                    f'Unrecongnized git status prefix in "{item}"')
 
         files_sorted: dict[str, list[str]] = {'uncomitted': [],
                                               'unstaged': [],
@@ -538,7 +537,7 @@ class Git(object):
         return self._getoutput("ls-files", *args).splitlines()
 
     def list_changed_files(self,
-                           compared: Union[tuple[str, str], tuple[str], str],
+                           compared: tuple[str, str] | tuple[str] | str,
                            *paths: str
                            ) -> list[str]:
         """Return a list of files that changed between compared.
@@ -552,8 +551,7 @@ class Git(object):
 
         self.update_index_refresh()
         if isinstance(compared, str):
-            # ignored because mypy thinks 'compared' might still be a list...
-            _compared: list[str] = [_compared]  # type: ignore
+            _compared: list[str] = [compared]
         else:
             _compared = list(compared)
 
@@ -579,7 +577,7 @@ class Git(object):
             raise
 
         tags = []
-        regexp = re.compile('^[0-9a-f]+ refs/%s/(.*)' % refpath)
+        regexp = re.compile(rf"^[0-9a-f]+ refs/{refpath}/(.*)")
         for line in output.splitlines():
             m = regexp.match(line)
             if not m:
@@ -609,13 +607,13 @@ class Git(object):
         with open(join(self.gitdir, "objects/info/alternates"), "w") as fob:
             fob.write(join(git.gitdir, "objects") + '\n')
 
-    def stash(self) -> Union[str, bool]:
+    def stash(self) -> str | bool:
         msg = self._getoutput("stash")
         if msg.startswith('No local changes to save'):
             return False
         return msg
 
-    def stash_pop(self) -> Union[str, bool]:
+    def stash_pop(self) -> str | bool:
         try:
             msg = self._getoutput("stash", "pop")
         except GitError as e:
@@ -625,7 +623,7 @@ class Git(object):
         return msg
 
     def remote(self, *args: str, list_all: bool = False
-               ) -> Union[str, dict[str, list[str]]]:
+               ) -> str | dict[str, list[str]]:
         if list_all:
             result = self._getoutput("remote", "-v")
             output: dict[str, list[str]] = {}
@@ -641,7 +639,7 @@ class Git(object):
 
     @staticmethod
     def set_gitignore(path: str,
-                      lines: Union[str, list[str]],
+                      lines: str | list[str],
                       append: bool = False
                       ) -> None:
         if isinstance(lines, str):
