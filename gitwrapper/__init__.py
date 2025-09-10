@@ -144,12 +144,15 @@ class Git:
             init_path = join(init_path, ".git")
 
         command = subprocess.run(
-            ["git", "--git-dir", init_path, "init"], stdout=PIPE, stderr=STDOUT
+            ["git", "--git-dir", init_path, "init"],
+            stdout=PIPE,
+            stderr=STDOUT,
+            text=True,
         )
         if command.returncode != 0:
-            raise GitError(command.stdout.decode("utf-8"))
+            raise GitError(command.stdout)
         elif verbose:
-            print(command.stdout.decode("utf-8"))
+            print(command.stdout)
 
         return cls(_path)
 
@@ -188,9 +191,9 @@ class Git:
     ) -> int:
         # command should be a list already, but just in case...
         _command: list[str] = ["git", command, *args]
-        output = subprocess.run(_command, stderr=PIPE)
+        output = subprocess.run(_command, stderr=PIPE, text=True)
         if check_returncode and output.returncode != 0:
-            raise GitError(output.stderr.decode("utf-8"))
+            raise GitError(output.stderr)
         else:
             return output.returncode
 
