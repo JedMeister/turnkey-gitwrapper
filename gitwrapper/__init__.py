@@ -396,7 +396,7 @@ class Git:
         return self._getoutput("show", *args)
 
     @setup
-    def describe(self, *args: str) -> str:
+    def describe(self, *args: str) -> list[str]:
         """git describe *args -> list of described tags.
 
         Note: git describe terminates on the first argument it can't
