@@ -408,8 +408,8 @@ class Git:
 
     @setup
     def commit_tree(
-        self, id: str, log: str, parents: list[str] | str | None = None
-    ) -> str:
+        self, id: str, log: bytes, parents: list[str] | str | None = None
+    ) -> bytes:
         """git commit-tree <id> [ -p <parents> ] < <log>
         Return id of object committed"""
         args = ["git", "commit-tree", id]
@@ -422,17 +422,18 @@ class Git:
 
         p = subprocess.Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
-            # p.stdin: Optional[IO[bytes]]
-            p.stdin.write(log)  # type: ignore
-            p.stdin.close()  # type: ignore
+            if p.stdin:
+                p.stdin.write(log)
+                p.stdin.close()
         except OSError:
             pass
 
         err = p.wait()
         if err:
             raise GitError("git commit-tree failed: {p.stderr.read()!r}")
-        # p.stdout: Optional[IO[bytes]]
-        return p.stdout.read().strip()  # type: ignore
+        if p.stdout:
+            return p.stdout.read().strip()
+        return b""
 
     def mktree_empty(self) -> bytes:
         """return an empty tree id which is needed for some comparisons"""
@@ -440,7 +441,6 @@ class Git:
         args = ["git", "mktree"]
         p = subprocess.Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         try:
-            # p.stdin: Optional[IO[bytes]]
             if p.stdin:
                 p.stdin.close()
         except OSError:
@@ -449,7 +449,6 @@ class Git:
         err = p.wait()
         if err:
             raise GitError("git mktree failed: {p.stderr.read()!r}")
-        # p.stdout: Optional[IO[bytes]]
         if p.stdout:
             return p.stdout.read().strip()
         return b""
