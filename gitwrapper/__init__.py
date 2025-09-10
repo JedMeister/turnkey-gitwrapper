@@ -26,10 +26,11 @@ def is_git_repository(path: AnyPath) -> bool:
     """Return True if path is a git repository"""
     path = realpath(fspath(path))
     path_git = join(path, ".git")
-    return isdir(path_git) or \
-        (path.endswith(".git") and
-         isdir(join(path, "refs")) and
-         isdir(join(path, "objects")))
+    return isdir(path_git) or (
+        path.endswith(".git")
+        and isdir(join(path, "refs"))
+        and isdir(join(path, "objects"))
+    )
 
 
 @no_type_check
@@ -46,7 +47,7 @@ def setup(method: Callable) -> str:
     def wrapper(self: Self, *args: str, **kws: str) -> Self:
         orig_cwd = os.getcwd()
         os.chdir(self.path)
-        os.environ['GIT_DIR'] = self.gitdir
+        os.environ["GIT_DIR"] = self.gitdir
 
         def make_relative(arg: str) -> str:
             if arg is None or isinstance(arg, bool):
@@ -90,10 +91,10 @@ class Git:
         Get reads value from .git/MERGE_MSG
         """
 
-        def get_path(self, obj: 'Git') -> str:
+        def get_path(self, obj: "Git") -> str:
             return join(obj.path, ".git", "MERGE_MSG")
 
-        def __get__(self, obj: 'Git', type: type) -> str | None:
+        def __get__(self, obj: "Git", type: type) -> str | None:
             path = self.get_path(obj)
             if exists(path):
                 with open(path) as fob:
@@ -101,25 +102,25 @@ class Git:
 
             return None
 
-        def __set__(self, obj: 'Git', val: str) -> None:
+        def __set__(self, obj: "Git", val: str) -> None:
             path = self.get_path(obj)
-            with open(path, 'w') as fob:
+            with open(path, "w") as fob:
                 fob.write(val)
 
     MERGE_MSG = MergeMsg()
 
     class IndexLock:
-        def get_path(self, obj: 'Git') -> str:
+        def get_path(self, obj: "Git") -> str:
             return join(obj.gitdir, "index.lock")
 
-        def __get__(self, obj: 'Git', type: type) -> bool:
+        def __get__(self, obj: "Git", type: type) -> bool:
             path = self.get_path(obj)
             return exists(path)
 
-        def __set__(self, obj: 'Git', val: type) -> None:
+        def __set__(self, obj: "Git", val: type) -> None:
             path = self.get_path(obj)
             if val:
-                with open(path, 'w'):
+                with open(path, "w"):
                     pass
             else:
                 if exists(path):
@@ -128,11 +129,12 @@ class Git:
     index_lock = IndexLock()
 
     @classmethod
-    def init_create(cls: type['Git'],
-                    path: AnyPath,
-                    bare: bool = False,
-                    verbose: bool = False
-                    ) -> 'Git':
+    def init_create(
+        cls: type["Git"],
+        path: AnyPath,
+        bare: bool = False,
+        verbose: bool = False,
+    ) -> "Git":
         _path = fspath(path)
         if not lexists(_path):
             os.mkdir(_path)
@@ -142,12 +144,12 @@ class Git:
             init_path = join(init_path, ".git")
 
         command = subprocess.run(
-                ['git', '--git-dir', init_path, 'init'],
-                stdout=PIPE, stderr=STDOUT)
+            ["git", "--git-dir", init_path, "init"], stdout=PIPE, stderr=STDOUT
+        )
         if command.returncode != 0:
-            raise GitError(command.stdout.decode('utf-8'))
+            raise GitError(command.stdout.decode("utf-8"))
         elif verbose:
-            print(command.stdout.decode('utf-8'))
+            print(command.stdout.decode("utf-8"))
 
         return cls(_path)
 
@@ -161,9 +163,11 @@ class Git:
         if isdir(path_git):
             self.bare = False
             self.gitdir = path_git
-        elif (self.path.endswith(".git") and
-              isdir(join(self.path, "refs")) and
-              isdir(join(self.path, "objects"))):
+        elif (
+            self.path.endswith(".git")
+            and isdir(join(self.path, "refs"))
+            and isdir(join(self.path, "objects"))
+        ):
             self.bare = True
             self.gitdir = self.path
         else:
@@ -176,16 +180,17 @@ class Git:
         if not (path == self.path or path.startswith(self.path + "/")):
             raise GitError(f"path not in the git repository ({path})")
 
-        return path[len(self.path):].lstrip("/")
+        return path[len(self.path) :].lstrip("/")
 
     @setup
-    def _system(self, command: str, *args: str,
-                check_returncode: bool = True) -> int:
+    def _system(
+        self, command: str, *args: str, check_returncode: bool = True
+    ) -> int:
         # command should be a list already, but just in case...
-        _command: list[str] = ['git', command, *args]
+        _command: list[str] = ["git", command, *args]
         output = subprocess.run(_command, stderr=PIPE)
         if check_returncode and output.returncode != 0:
-            raise GitError(output.stderr.decode('utf-8'))
+            raise GitError(output.stderr.decode("utf-8"))
         else:
             return output.returncode
 
@@ -205,15 +210,19 @@ class Git:
         """update all files that need update according to git update-index
         --refresh"""
         command = subprocess.run(
-                ['git', 'update-index', '--refresh'],
-                stdout=PIPE,
-                stderr=STDOUT,
-                text=True)
+            ["git", "update-index", "--refresh"],
+            stdout=PIPE,
+            stderr=STDOUT,
+            text=True,
+        )
         if command.returncode == 0:
             return
         output = command.stdout
-        files = [line.rsplit(':', 1)[0] for line in output.split('\n')
-                 if line.endswith("needs update")]
+        files = [
+            line.rsplit(":", 1)[0]
+            for line in output.split("\n")
+            if line.endswith("needs update")
+        ]
         self.update_index(*files)
 
     def add(self, *paths: str) -> None:
@@ -235,15 +244,17 @@ class Git:
 
     def rm_cached(self, path: str) -> None:
         """git rm <path>"""
-        self._system("rm", "--ignore-unmatch", "--cached",
-                     "--quiet", "-f", "-r", path)
+        self._system(
+            "rm", "--ignore-unmatch", "--cached", "--quiet", "-f", "-r", path
+        )
 
     def commit(
-            self,
-            paths: list[str] | None = None,
-            msg: str | None = None,
-            update_all: bool = False,
-            verbose: bool = False) -> None:
+        self,
+        paths: list[str] | None = None,
+        msg: str | None = None,
+        update_all: bool = False,
+        verbose: bool = False,
+    ) -> None:
         """git commit"""
         if paths is None:
             paths = []
@@ -299,21 +310,20 @@ class Git:
 
     @setup
     def _getoutput(
-            self,
-            command: str,
-            *args: str,
-            check_returncode: bool = True,
-            stderr: int | IO[str] = STDOUT) -> str:
-
+        self,
+        command: str,
+        *args: str,
+        check_returncode: bool = True,
+        stderr: int | IO[str] = STDOUT,
+    ) -> str:
         output = subprocess.run(
-                ['git', command, *args],
-                stdout=PIPE,
-                stderr=stderr,
-                text=True)
+            ["git", command, *args], stdout=PIPE, stderr=stderr, text=True
+        )
         if check_returncode and output.returncode != 0:
             raise GitError(
-                    output.stdout,
-                    f'erronous input: {command!r} {" ".join(map(repr, args))}')
+                output.stdout,
+                f"erronous input: {command!r} {' '.join(map(repr, args))}",
+            )
 
         return output.stdout.rstrip()
 
@@ -356,12 +366,13 @@ class Git:
         """git rev-list <commit>.
         Returns list of commits.
         """
-        output = self._getoutput("rev-list", *args,
-                                 check_returncode=check_returncode)
+        output = self._getoutput(
+            "rev-list", *args, check_returncode=check_returncode
+        )
         if not output:
             return []
         # remove empty lines from list
-        return list(filter(None, output.split('\n')))
+        return list(filter(None, output.split("\n")))
 
     def name_rev(self, rev: str) -> str:
         """git name-rev <rev>
@@ -389,15 +400,13 @@ class Git:
         describe and we ignore that error.
         """
         return self._getoutput(
-                "describe", *args,
-                check_returncode=False, stderr=PIPE
-                ).splitlines()
+            "describe", *args, check_returncode=False, stderr=PIPE
+        ).splitlines()
 
     @setup
-    def commit_tree(self,
-                    id: str, log: str,
-                    parents: list[str] | str | None = None
-                    ) -> str:
+    def commit_tree(
+        self, id: str, log: str, parents: list[str] | str | None = None
+    ) -> str:
         """git commit-tree <id> [ -p <parents> ] < <log>
         Return id of object committed"""
         args = ["git", "commit-tree", id]
@@ -446,11 +455,11 @@ class Git:
     def log(self, *args: str, oneline: bool = False, count: int = 0) -> str:
         """git log *args
         Return stdout pipe"""
-        command = ['log']
+        command = ["log"]
         if oneline:
-            command.append('--oneline')
+            command.append("--oneline")
         if count != 0:
-            command.append(f'-{count}')
+            command.append(f"-{count}")
         command = command + list(args)
 
         return self._getoutput(*command, stderr=PIPE)
@@ -460,33 +469,35 @@ class Git:
         Returns latest tag. If no tags found, returns False."""
         # don't check_returncode as it will exit non-zero if no tags
         latest_tagged_commit = self.rev_list(
-                    '--tags', '--max-count=1', check_returncode=False)
+            "--tags", "--max-count=1", check_returncode=False
+        )
         if len(latest_tagged_commit) != 1:
             # should return one result, otherwise there are no tags
             return False
-        return self.describe('--tags', latest_tagged_commit[0])[0]
+        return self.describe("--tags", latest_tagged_commit[0])[0]
 
     def get_latest_commit(self, short: bool = True) -> str:
         """git rev-parse [--short] HEAD
         Returns latest commit short ID by default, long ID if short=False."""
         args = []
         if short:
-            args.append('--short')
-        args.append('HEAD')
+            args.append("--short")
+        args.append("HEAD")
         out = self.rev_parse(*args)
         if out is None:
-            raise GitError(f'rev_parse({args}) failed!')
+            raise GitError(f"rev_parse({args}) failed!")
         return out.strip()
 
     def status(self, *paths: str) -> list[list[str]]:
         """git diff-index --name-status HEAD
-        Returns array of (status, path) changes """
+        Returns array of (status, path) changes"""
 
         self.update_index_refresh()
-        output = self._getoutput("diff-index", "--ignore-submodules",
-                                 "--name-status", "HEAD", *paths)
+        output = self._getoutput(
+            "diff-index", "--ignore-submodules", "--name-status", "HEAD", *paths
+        )
         if output:
-            return [line.split('\t', 1) for line in output.split('\n')]
+            return [line.split("\t", 1) for line in output.split("\n")]
         return []
 
     def status_full(self, simple: bool = True) -> bool | dict[str, list[str]]:
@@ -496,26 +507,31 @@ class Git:
         While simple=False; returns a dictionary of categories, containing
         lists of files."""
 
-        items: list[str] = list(filter(
-            None, self._getoutput('status', '--porcelain').split('\n')))
+        items: list[str] = list(
+            filter(None, self._getoutput("status", "--porcelain").split("\n"))
+        )
         if simple:
             if len(items) == 0:
                 return True
             return False
 
-        stati = (('uncommited', 'M  '), ('unstaged', ' M '),
-                 ('untracked', '?? '))
+        stati = (
+            ("uncommited", "M  "),
+            ("unstaged", " M "),
+            ("untracked", "?? "),
+        )
 
         def _check_status(item: str) -> tuple[str, str]:
             for status, prefix in stati:
                 if item.startswith(prefix):
-                    return status, item[len(prefix):]
-            raise GitError(
-                    f'Unrecongnized git status prefix in "{item}"')
+                    return status, item[len(prefix) :]
+            raise GitError(f'Unrecongnized git status prefix in "{item}"')
 
-        files_sorted: dict[str, list[str]] = {'uncomitted': [],
-                                              'unstaged': [],
-                                              'untracked': []}
+        files_sorted: dict[str, list[str]] = {
+            "uncomitted": [],
+            "unstaged": [],
+            "untracked": [],
+        }
         for item in items:
             status, filename = _check_status(item)
             files_sorted[status].append(filename)
@@ -524,22 +540,21 @@ class Git:
     def list_unmerged(self) -> list[str]:
         output = self._getoutput("diff", "--name-only", "--diff-filter=U")
         if output:
-            return output.split('\n')
+            return output.split("\n")
         return []
 
     def get_commit_log(self, committish: str) -> str:
         """Returns commit log text for <committish>"""
 
         s = self._getoutput("cat-file commit", committish)
-        return s[s.index('\n\n') + 2:]
+        return s[s.index("\n\n") + 2 :]
 
     def ls_files(self, *args: str) -> list[str]:
         return self._getoutput("ls-files", *args).splitlines()
 
-    def list_changed_files(self,
-                           compared: tuple[str, str] | tuple[str] | str,
-                           *paths: str
-                           ) -> list[str]:
+    def list_changed_files(
+        self, compared: tuple[str, str] | tuple[str] | str, *paths: str
+    ) -> list[str]:
         """Return a list of files that changed between compared.
 
         If compared is tuple with 2 elements, we compare the
@@ -556,23 +571,35 @@ class Git:
             _compared = list(compared)
 
         if len(_compared) == 2:
-            s = self._getoutput("diff-tree", "-r", "--name-only",
-                                _compared[0], _compared[1], *paths)
+            s = self._getoutput(
+                "diff-tree",
+                "-r",
+                "--name-only",
+                _compared[0],
+                _compared[1],
+                *paths,
+            )
         elif len(_compared) == 1:
-            s = self._getoutput("diff-index", "--ignore-submodules", "-r",
-                                "--name-only", _compared[0], *paths)
+            s = self._getoutput(
+                "diff-index",
+                "--ignore-submodules",
+                "-r",
+                "--name-only",
+                _compared[0],
+                *paths,
+            )
         else:
             raise GitError("compared does not contain 1 or 2 elements")
 
         if s:
-            return s.split('\n')
+            return s.split("\n")
         return []
 
     def list_refs(self, refpath: str) -> list[str]:
         try:
             output = self._getoutput("show-ref", "--", refpath)
         except GitError as e:
-            if e == '':
+            if e == "":
                 return []
             raise
 
@@ -600,16 +627,16 @@ class Git:
     def remove_tag(self, name: str) -> None:
         self.remove_ref("tags/" + name)
 
-    def set_alternates(self, git: 'Git') -> None:
+    def set_alternates(self, git: "Git") -> None:
         """set alternates path to point to the objects path of the specified
         git object"""
 
         with open(join(self.gitdir, "objects/info/alternates"), "w") as fob:
-            fob.write(join(git.gitdir, "objects") + '\n')
+            fob.write(join(git.gitdir, "objects") + "\n")
 
     def stash(self) -> str | bool:
         msg = self._getoutput("stash")
-        if msg.startswith('No local changes to save'):
+        if msg.startswith("No local changes to save"):
             return False
         return msg
 
@@ -617,18 +644,19 @@ class Git:
         try:
             msg = self._getoutput("stash", "pop")
         except GitError as e:
-            if e.args[0].startswith('No stash found'):
+            if e.args[0].startswith("No stash found"):
                 return False
             raise
         return msg
 
-    def remote(self, *args: str, list_all: bool = False
-               ) -> str | dict[str, list[str]]:
+    def remote(
+        self, *args: str, list_all: bool = False
+    ) -> str | dict[str, list[str]]:
         if list_all:
             result = self._getoutput("remote", "-v")
             output: dict[str, list[str]] = {}
-            for line in result.split('\n').strip():
-                name, location = line.split('\t')
+            for line in result.split("\n").strip():
+                name, location = line.split("\t")
                 if name in output.keys():
                     output[name].append(location)
                 else:
@@ -638,22 +666,21 @@ class Git:
             return self._getoutput("remote", *args)
 
     @staticmethod
-    def set_gitignore(path: str,
-                      lines: str | list[str],
-                      append: bool = False
-                      ) -> None:
+    def set_gitignore(
+        path: str, lines: str | list[str], append: bool = False
+    ) -> None:
         if isinstance(lines, str):
-            lines_ = lines.split('\n')
+            lines_ = lines.split("\n")
         else:
             lines_ = lines
-        mode = 'w'
+        mode = "w"
         if append:
-            mode = 'a'
+            mode = "a"
         with open(join(path, ".gitignore"), mode) as fob:
             for line in lines_:
-                fob.write(line+'\n')
+                fob.write(line + "\n")
 
     @staticmethod
     def anchor(path: str) -> None:
         with open(join(path, ".anchor"), "w") as fob:
-            fob.write('')
+            fob.write("")
